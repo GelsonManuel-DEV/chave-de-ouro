@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FORMA — Design Studio</title>
+<script src="https://unpkg.com/react@19/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@19/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/framer-motion@11/dist/framer-motion.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          serif: ['Cormorant Garamond', 'serif'],
+          mono: ['DM Mono', 'monospace'],
+          display: ['Syne', 'sans-serif'],
+        },
+        colors: {
+          ink: '#0D0D0D',
+          bone: '#F5F0E8',
+          clay: '#C4A882',
+          rust: '#8B3A2A',
+          sage: '#4A5C4D',
+          ash: '#9A9690',
+        },
+        letterSpacing: {
+          widest: '0.3em',
+          ultra: '0.5em',
+        }
+      }
+    }
+  }
+</script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: #0D0D0D;
+    color: #F5F0E8;
+    font-family: 'Cormorant Garamond', serif;
+    overflow-x: hidden;
+    cursor: none;
+  }
+  ::selection { background: #C4A882; color: #0D0D0D; }
+  ::-webkit-scrollbar { width: 2px; }
+  ::-webkit-scrollbar-track { background: #0D0D0D; }
+  ::-webkit-scrollbar-thumb { background: #C4A882; }
+
+  .cursor {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #C4A882;
+    position: fixed;
+    top: 0; left: 0;
+    pointer-events: none;
+    z-index: 9999;
+    transition: transform 0.1s ease;
+    mix-blend-mode: difference;
+  }
+  .cursor-ring {
+    width: 36px; height: 36px;
+    border: 1px solid rgba(196,168,130,0.4);
+    border-radius: 50%;
+    position: fixed;
+    top: 0; left: 0;
+    pointer-events: none;
+    z-index: 9998;
+    transition: all 0.15s ease;
+  }
+  .cursor-ring.hover { transform: scale(2.5); border-color: rgba(196,168,130,0.8); }
+
+  .grain {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  }
+
+  .line-reveal {
+    overflow: hidden;
+  }
+
+  nav a:hover .nav-line { width: 100%; }
+  .nav-line { transition: width 0.4s cubic-bezier(0.76, 0, 0.24, 1); }
+
+  .work-item:hover .work-num { color: #C4A882; }
+  .work-item:hover .work-title { letter-spacing: 0.05em; }
+  .work-title { transition: letter-spacing 0.6s cubic-bezier(0.76, 0, 0.24, 1); }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    33% { transform: translateY(-12px) rotate(1deg); }
+    66% { transform: translateY(-6px) rotate(-0.5deg); }
+  }
+
+  @keyframes marquee {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  .marquee-track { animation: marquee 22s linear infinite; }
+  .marquee-track:hover { animation-play-state: paused; }
+
+  @keyframes scanline {
+    0% { top: -2px; }
+    100% { top: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<div id="root"></div>
+
+<script>
+  const cursor = document.getElementById('cursor');
+  const ring = document.getElementById('cursorRing');
+  let mx = 0, my = 0, rx = 0, ry = 0;
+  document.addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    cursor.style.left = mx - 4 + 'px';
+    cursor.style.top = my - 4 + 'px';
+  });
+  function animRing() {
+    rx += (mx - rx - 18) * 0.12;
+    ry += (my - ry - 18) * 0.12;
+    ring.style.left = rx + 'px';
+    ring.style.top = ry + 'px';
+    requestAnimationFrame(animRing);
+  }
+  animRing();
+  document.querySelectorAll('a,button').forEach(el => {
+    el.addEventListener('mouseenter', () => ring.classList.add('hover'));
+    el.addEventListener('mouseleave', () => ring.classList.remove('hover'));
+  });
+</script>
+
+<script type="text/babel">
+const { motion, useScroll, useTransform, AnimatePresence, useInView } = FramerMotion;
+const { useRef, useState, useEffect } = React;
+
+const ease = [0.76, 0, 0.24, 1];
+
+function FadeUp({ children, delay = 0, className = '' }) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: '-80px' });
+  return (
+    <motion.div
+      ref={ref}
+      className={className}
+      initial={{ opacity: 0, y: 40 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 1.1, ease, delay }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+function Nav() {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    window.addEventListener('scroll', () => setScrolled(window.scrollY > 60));
+  }, []);
+  return (
+    <motion.nav
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 1, ease }}
+      className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-5 transition-all duration-700 ${scrolled ? 'bg-ink/90 backdrop-blur-sm border-b border-bone/5' : ''}`}
+    >
+      <span className="font-display font-800 text-sm tracking-ultra text-bone uppercase">FORMA</span>
+      <div className="flex gap-10">
+        {['Trabalho','Processo','Contato'].map(l => (
+          <a key={l} href={`#${l.toLowerCase()}`} className="relative group text-xs font-mono text-ash tracking-widest uppercase hover:text-clay transition-colors duration-400">
+            {l}
+            <span className="nav-line absolute -bottom-0.5 left-0 h-px bg-clay w-0 group-hover:w-full"></span>
+          </a>
+        ))}
+      </div>
+    </motion.nav>
+  );
+}
+
+function Hero() {
+  const ref = useRef(null);
+  const { scrollYProgress } = useScroll({ target: ref });
+  const y = useTransform(scrollYProgress, [0, 1], [0, 180]);
+  const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
+  const scale = useTransform(scrollYProgress, [0, 0.5], [1, 0.94]);
+
+  return (
+    <section ref={ref} className="relative min-h-screen flex flex-col justify-between px-8 pt-28 pb-16 overflow-hidden">
+      {/* Background grid */}
+      <div className="absolute inset-0 opacity-[0.03]"
+        style={{backgroundImage:'linear-gradient(#F5F0E8 1px,transparent 1px),linear-gradient(90deg,#F5F0E8 1px,transparent 1px)', backgroundSize:'80px 80px'}}>
+      </div>
+
+      {/* Floating orb */}
+      <motion.div
+        style={{ y }}
+        className="absolute right-24 top-32 w-72 h-72 rounded-full opacity-10"
+        animate={{ rotate: 360 }}
+        transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
+      >
+        <div className="w-full h-full rounded-full border border-clay/40"
+          style={{background:'radial-gradient(circle at 30% 40%, rgba(196,168,130,0.3), transparent 70%)'}}/>
+      </motion.div>
+
+      <motion.div style={{ opacity, scale }} className="relative z-10">
+        {/* Label */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 1, ease, delay: 0.3 }}
+          className="flex items-center gap-3 mb-16"
+        >
+          <span className="w-8 h-px bg-clay"></span>
+          <span className="font-mono text-xs text-ash tracking-widest uppercase">Estúdio de Design — 2025</span>
+        </motion.div>
+
+        {/* Main headline */}
+        <div className="max-w-5xl">
+          {[
+            { text: 'Forma.', style: 'font-serif text-[clamp(4rem,12vw,11rem)] font-light leading-none tracking-tight italic text-bone', delay: 0.5 },
+            { text: 'Função.', style: 'font-serif text-[clamp(4rem,12vw,11rem)] font-light leading-none tracking-tight italic text-clay pl-[8vw]', delay: 0.7 },
+            { text: 'Permanência.', style: 'font-display text-[clamp(1.5rem,4vw,4rem)] font-400 leading-none tracking-wider text-ash/60 mt-4', delay: 0.9 },
+          ].map(({ text, style, delay }) => (
+            <div key={text} className="line-reveal">
+              <motion.div
+                className={style}
+                initial={{ y: '110%' }}
+                animate={{ y: 0 }}
+                transition={{ duration: 1.2, ease, delay }}
+              >
+                {text}
+              </motion.div>
+            </div>
+          ))}
+        </div>
+
+        {/* Descriptor */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1.5, delay: 1.3 }}
+          className="font-mono text-xs text-ash/60 tracking-widest max-w-xs leading-relaxed mt-16 ml-1"
+        >
+          Criamos identidades visuais que resistem ao tempo. Cada projeto é uma tese sobre permanência.
+        </motion.p>
+      </motion.div>
+
+      {/* Bottom row */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1, delay: 1.6 }}
+        className="relative z-10 flex items-end justify-between"
+      >
+        <div className="flex gap-8">
+          {[['24', 'anos'], ['180+', 'projetos'], ['3', 'continentes']].map(([n, l]) => (
+            <div key={l}>
+              <div className="font-serif text-3xl font-light text-clay">{n}</div>
+              <div className="font-mono text-xs text-ash tracking-widest uppercase">{l}</div>
+            </div>
+          ))}
+        </div>
+        <motion.button
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          className="group flex items-center gap-4 border border-bone/20 px-8 py-4 hover:border-clay/60 transition-colors duration-500"
+        >
+          <span className="font-mono text-xs tracking-widest uppercase text-bone/70 group-hover:text-clay transition-colors duration-400">Ver trabalho</span>
+          <motion.span
+            animate={{ x: [0, 5, 0] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+            className="text-clay"
+          >→</motion.span>
+        </motion.button>
+      </motion.div>
+    </section>
+  );
+}
+
+function Marquee() {
+  const items = ['Identidade Visual', '—', 'Tipografia', '—', 'Motion Design', '—', 'Branding Editorial', '—', 'Art Direction', '—', 'Sistemas Visuais', '—'];
+  return (
+    <div className="border-t border-b border-bone/8 py-4 overflow-hidden">
+      <div className="marquee-track flex gap-12 whitespace-nowrap" style={{width:'max-content'}}>
+        {[...items, ...items].map((item, i) => (
+          <span key={i} className={`font-${item === '—' ? 'mono text-clay' : 'serif italic text-ash/50'} text-sm tracking-widest uppercase`}>
+            {item}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Work() {
+  const projects = [
+    { num: '001', title: 'Archivo Oscuro', cat: 'Identidade / Editorial', year: '2024', tags: ['Branding','Tipografia'] },
+    { num: '002', title: 'Nómade Studio', cat: 'Branding / Web', year: '2024', tags: ['Sistema Visual','Motion'] },
+    { num: '003', title: 'Terre Blanche', cat: 'Art Direction / Print', year: '2023', tags: ['Editorial','Fotografia'] },
+    { num: '004', title: 'Vesper & Co.', cat: 'Identidade / Embalagem', year: '2023', tags: ['Produto','Luxo'] },
+  ];
+
+  return (
+    <section id="trabalho" className="px-8 py-32">
+      <FadeUp className="flex items-end justify-between mb-16">
+        <div>
+          <span className="font-mono text-xs text-clay tracking-widest uppercase block mb-3">— Seleção</span>
+          <h2 className="font-serif text-[clamp(2.5rem,6vw,5rem)] font-light italic leading-none text-bone">
+            Trabalho
+          </h2>
+        </div>
+        <span className="font-mono text-xs text-ash/50 tracking-widest hidden md:block">[ 2020 – 2024 ]</span>
+      </FadeUp>
+
+      <div className="divide-y divide-bone/8">
+        {projects.map((p, i) => (
+          <FadeUp key={p.num} delay={i * 0.08}>
+            <motion.div
+              className="work-item group flex items-center justify-between py-8 cursor-pointer"
+              whileHover={{ x: 6 }}
+              transition={{ duration: 0.4, ease }}
+            >
+              <div className="flex items-center gap-10">
+                <span className="work-num font-mono text-xs text-ash/30 transition-colors duration-400 w-10">{p.num}</span>
+                <div>
+                  <h3 className="work-title font-serif text-[clamp(1.5rem,3.5vw,2.8rem)] font-light italic text-bone leading-none">{p.title}</h3>
+                  <div className="flex gap-2 mt-2">
+                    {p.tags.map(t => (
+                      <span key={t} className="font-mono text-xs text-ash/40 tracking-widest uppercase">{t}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="hidden md:flex items-center gap-12">
+                <span className="font-mono text-xs text-ash/40 tracking-widest uppercase">{p.cat}</span>
+                <span className="font-mono text-xs text-ash/30">{p.year}</span>
+                <motion.div
+                  initial={{ opacity: 0, x: -10 }}
+                  whileHover={{ opacity: 1, x: 0 }}
+                  className="text-clay text-xl opacity-0 group-hover:opacity-100"
+                >
+                  ↗
+                </motion.div>
+              </div>
+            </motion.div>
+          </FadeUp>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Process() {
+  const steps = [
+    { n: '01', title: 'Escuta', body: 'Todo projeto começa em silêncio. Ouvimos antes de falar. Pesquisamos antes de criar. O problema precisa ser compreendido em sua totalidade.' },
+    { n: '02', title: 'Conceito', body: 'A ideia nasce no território entre pesquisa e intuição. Desenvolvemos sistemas conceituais que orientam cada decisão visual subsequente.' },
+    { n: '03', title: 'Forma', body: 'Da abstração ao concreto. Cada elemento é escolhido com rigor — tipografia, cor, espaço. Nada é decoração. Tudo tem função.' },
+    { n: '04', title: 'Refinamento', body: 'O detalhe é onde a qualidade habita. Iteramos até que cada milímetro justifique sua existência. Até que o invisível seja perfeito.' },
+  ];
+  return (
+    <section id="processo" className="px-8 py-32 border-t border-bone/8">
+      <FadeUp className="mb-20">
+        <span className="font-mono text-xs text-clay tracking-widest uppercase block mb-3">— Método</span>
+        <h2 className="font-serif text-[clamp(2.5rem,6vw,5rem)] font-light italic leading-none text-bone">
+          Processo
+        </h2>
+      </FadeUp>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-0 divide-x divide-bone/8">
+        {steps.map((s, i) => (
+          <FadeUp key={s.n} delay={i * 0.1} className="px-8 py-10 first:pl-0 last:pr-0">
+            <span className="font-mono text-xs text-clay/60 tracking-widest block mb-6">{s.n}</span>
+            <h3 className="font-serif text-3xl font-light italic text-bone mb-4 leading-tight">{s.title}</h3>
+            <p className="font-mono text-xs text-ash/50 leading-relaxed">{s.body}</p>
+          </FadeUp>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function About() {
+  const ref = useRef(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] });
+  const x = useTransform(scrollYProgress, [0, 1], [-60, 60]);
+  return (
+    <section className="py-32 overflow-hidden border-t border-bone/8">
+      <div className="px-8 mb-20">
+        <FadeUp>
+          <div className="max-w-3xl">
+            <motion.p style={{ x }} className="font-serif text-[clamp(1.6rem,3.5vw,2.8rem)] font-light italic text-bone/80 leading-relaxed">
+              "Design não é sobre fazer as coisas bonitas. É sobre fazer as coisas <em className="text-clay not-italic">certas</em> — e então torná-las belas."
+            </motion.p>
+            <div ref={ref} className="mt-6 flex items-center gap-4">
+              <span className="w-12 h-px bg-clay/40"></span>
+              <span className="font-mono text-xs text-ash/50 tracking-widest uppercase">Manifesto do Estúdio</span>
+            </div>
+          </div>
+        </FadeUp>
+      </div>
+
+      {/* Big rotated text */}
+      <div className="relative py-12 select-none overflow-hidden">
+        <div className="font-display font-800 text-[clamp(5rem,18vw,16rem)] leading-none text-bone/3 whitespace-nowrap text-center tracking-tighter">
+          FORMA
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Contact() {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <section id="contato" className="px-8 py-32 border-t border-bone/8">
+      <div className="max-w-4xl">
+        <FadeUp>
+          <span className="font-mono text-xs text-clay tracking-widest uppercase block mb-6">— Vamos conversar</span>
+        </FadeUp>
+        <FadeUp delay={0.1}>
+          <motion.a
+            href="mailto:ola@forma.studio"
+            className="group relative block"
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+          >
+            <h2 className="font-serif text-[clamp(2.5rem,8vw,7rem)] font-light italic leading-none text-bone group-hover:text-clay transition-colors duration-700">
+              ola@forma.studio
+            </h2>
+            <AnimatePresence>
+              {hovered && (
+                <motion.span
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  exit={{ scaleX: 0 }}
+                  className="absolute bottom-0 left-0 w-full h-px bg-clay origin-left block"
+                />
+              )}
+            </AnimatePresence>
+          </motion.a>
+        </FadeUp>
+        <FadeUp delay={0.2} className="mt-16 flex items-center justify-between flex-wrap gap-8">
+          <div className="flex gap-8">
+            {['Instagram','Behance','LinkedIn'].map(s => (
+              <a key={s} href="#" className="font-mono text-xs text-ash/40 tracking-widest uppercase hover:text-clay transition-colors duration-400">
+                {s}
+              </a>
+            ))}
+          </div>
+          <span className="font-mono text-xs text-ash/20 tracking-widest">Lisboa — Porto — Remote</span>
+        </FadeUp>
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="px-8 py-8 border-t border-bone/5 flex items-center justify-between">
+      <span className="font-mono text-xs text-ash/20 tracking-widest">© FORMA 2025</span>
+      <span className="font-mono text-xs text-ash/20 tracking-widest">Design Estúdio</span>
+    </footer>
+  );
+}
+
+function App() {
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setLoaded(true), 200);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <AnimatePresence>
+      {loaded && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8 }}
+        >
+          <Nav />
+          <Hero />
+          <Marquee />
+          <Work />
+          <About />
+          <Process />
+          <Contact />
+          <Footer />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
