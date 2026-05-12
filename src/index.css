@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+/* Reset Global para garantir imersão total */
+html, body {
+  background-color: #050505; /* O preto padrão da Chave de Ouro */
+  color: #ffffff;
+  margin: 0;
+  padding: 0;
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+}
+
+/* Estilização da Scrollbar (Barra de Rolagem) para combinar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #050505;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d4af37; /* Dourado na barra de rolagem */
+  border-radius: 10px;
+}
